@@ -1,58 +1,226 @@
-﻿#include <iostream>
-#include <new>        // Для operator new[]
-#include <stdexcept>  // Для invalid_argument
+﻿#include <cstdlib>      // Для malloc и free
+#include <new>
+#include <cassert>      // Для assert
+#include <utility>      // Для move и is_move_constructible
 
 using namespace std;
 
 template<typename T>
 class Array final 
 {
-
 private:
-    T* indicator;      
+    T* indicator;
     int size;
     int current_size;
-    static const int default_size = 4;
+    static constexpr int default_size = 8;
 
-public:
-
-    Array() : Array(default_size) {}
-
-    Array(int size)
+    // Перераспределение памяти
+    void resize(int new_size) 
     {
-        if (size <= 0) {
-            throw invalid_argument("Size must be positive.");
+        T* new_indicator = static_cast<T*>(std::malloc(new_size * sizeof(T)));
+
+        if (!new_indicator) {
+            throw std::bad_alloc();
         }
 
-        this.size = size;
-        current_size = 0;
-        indicator = static_cast<T*>(operator new[](size * sizeof(T)));
+        // Перемещаем или копируем элементы в новую область
+        if constexpr (is_move_constructible<T>::value) 
+        {
+            for (int i = 0; i < current_size; ++i) 
+            {
+                new (new_indicator + i) T(move(indicator[i]));
+                indicator[i].~T();
+            }
+        }
+        else 
+        {
+            for (int i = 0; i < current_size; ++i) 
+            {
+                new (new_indicator + i) T(indicator[i]);
+                indicator[i].~T();
+            }
+        }
+
+        free(indicator);
+
+        indicator = new_indicator;
+        size = new_size;
     }
 
-    ~Array() 
+    // Освобождение всех элементов
+    void clear() 
     {
         for (int i = 0; i < current_size; ++i) {
             indicator[i].~T();
         }
 
-        operator delete[](indicator);
+        current_size = 0;
     }
 
-    int insert(const T& value);
+public:
+    // Конструкторы
+    Array() : Array(default_size) {}
 
-    int insert(int index, const T& value);
+    // explicit - не дает сделать неявное преобразование
+    explicit Array(int user_size) : size(user_size), current_size(0)
+    {
+        indicator = static_cast<T*>(std::malloc(size * sizeof(T)));
 
-    const T& operator[](int index) const;
+        if (!indicator) {
+            throw bad_alloc();
+        }
+    }
 
-    T& operator[](int index);
+    // Конструктор копирования
+    Array(const Array& other) : size(other.size), current_size(other.current_size) 
+    {
+        indicator = static_cast<T*>(std::malloc(size * sizeof(T)));
 
-    int size() const{
+        if (!indicator) {
+            throw bad_alloc();
+        }
+        
+        for (int i = 0; i < current_size; ++i) {
+            new (indicator + i) T(other.indicator[i]);
+        }
+    }
+
+    // Конструктор перемещения
+    Array(Array&& other) noexcept : indicator(other.indicator), size(other.size), current_size(other.current_size) 
+    {
+        other.indicator = nullptr;
+        other.size = 0;
+        other.current_size = 0;
+    }
+
+    // Оператор присваивания копированием
+    Array& operator = (const Array& other) 
+    {
+        if (this != &other) 
+        {
+            clear();
+            free(indicator);
+
+            size = other.size;
+            current_size = other.current_size;
+
+            indicator = static_cast<T*>(std::malloc(size * sizeof(T)));
+
+            if (!indicator) {
+                throw std::bad_alloc();
+            }
+
+            for (int i = 0; i < current_size; ++i) {
+                new (indicator + i) T(other.indicator[i]);
+            }
+        }
+
+        return *this;
+    }
+
+    // Оператор присваивания перемещением
+    Array& operator = (Array&& other) noexcept 
+    {
+        if (this != &other) 
+        {
+            clear();
+            free(indicator);
+
+            indicator = other.indicator;
+            size = other.size;
+            current_size = other.current_size;
+
+            other.indicator = nullptr;
+            other.size = 0;
+            other.current_size = 0;
+        }
+
+        return *this;
+    }
+
+    // Оператор индексирования (константный)
+    const T& operator[](int index) const {
+        return indicator[index];
+    }
+
+    // Оператор индексирования (не константный)
+    T& operator[](int index) {
+        return indicator[index];
+    }
+
+    // Деструктор
+    ~Array() 
+    {
+        clear();
+        free(indicator);
+    }
+
+    // Получение размера
+    int size() const {
         return current_size;
     }
+
+    // Вставка в конец
+    int insert(const T& value) {
+        return insert(current_size, value);
+    }
+
+    // Вставка по индексу
+    int insert(int index, const T& value) 
+    {
+        // Механизм утверждений
+        assert(index >= 0 && index <= current_size);
+
+        if (current_size >= size) {
+            resize(2 * size);
+        }
+
+        // Сдвигаем элементы вправо, используя перемещение или копирование
+        if constexpr (is_move_constructible<T>::value) 
+        {
+            for (int i = current_size; i > index; --i) 
+            {
+                new (indicator + i) T(std::move(indicator[i - 1]));
+                indicator[i - 1].~T();
+            }
+        }
+        else 
+        {
+            for (int i = current_size; i > index; --i) 
+            {
+                new (indicator + i) T(indicator[i - 1]);
+                indicator[i - 1].~T();
+            }
+        }
+
+        // Вставляем новый элемент
+        new (indicator + index) T(value);
+        ++current_size;
+
+        return index;
+    }
+
+    // Удаление по индексу
+    void remove(int index) 
+    {
+        // Механизм утверждений
+        assert(index >= 0 && index < current_size);
+
+        indicator[index].~T();
+
+        // Сдвигаем элементы влево перемещением или копированием
+        for (int i = index; i < current_size - 1; ++i) 
+        {
+            if constexpr (is_move_assignable<T>::value) {
+                indicator[i] = move(indicator[i + 1]);
+            }
+            else {
+                indicator[i] = indicator[i + 1];
+            }
+        }
+
+        indicator[current_size].~T();
+
+        --current_size;
+    }
 };
-
-
-int main()
-{
-    std::cout << "Hello World!\n";
-}
