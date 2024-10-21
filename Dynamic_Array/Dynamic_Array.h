@@ -126,7 +126,7 @@ public:
     }
 
     // Конструктор копирования
-    Array(const Array& other) : max_size(other.size), current_size(other.current_size)
+    Array(const Array& other) : max_size(other.max_size), current_size(other.current_size)
     {
         indicator = static_cast<T*>(malloc(max_size * sizeof(T)));
 
@@ -140,10 +140,10 @@ public:
     }
 
     // Конструктор перемещения
-    Array(Array&& other) noexcept : indicator(other.indicator), size(other.size), current_size(other.current_size)
+    Array(Array&& other) noexcept : indicator(other.indicator), max_size(other.max_size), current_size(other.current_size)
     {
         other.indicator = nullptr;
-        other.size = 0;
+        other.max_size = 0;
         other.current_size = 0;
     }
 
@@ -155,10 +155,10 @@ public:
             clear();
             free(indicator);
 
-            size = other.size;
+            max_size = other.max_size;
             current_size = other.current_size;
 
-            indicator = static_cast<T*>(malloc(size * sizeof(T)));
+            indicator = static_cast<T*>(malloc(max_size * sizeof(T)));
 
             if (!indicator) {
 
@@ -182,11 +182,11 @@ public:
             free(indicator);
 
             indicator = other.indicator;
-            size = other.size;
+            max_size = other.max_size;
             current_size = other.current_size;
 
             other.indicator = nullptr;
-            other.size = 0;
+            other.max_size = 0;
             other.current_size = 0;
         }
 
