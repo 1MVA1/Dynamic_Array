@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdlib>      // Для malloc и free
 #include <new>
 #include <cassert>      // Для assert
