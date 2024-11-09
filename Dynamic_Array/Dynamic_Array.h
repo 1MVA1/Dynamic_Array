@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdlib>      // Для malloc и free
-#include <new>
+#include <new>          // Для оператора new с размещением
 #include <cassert>      // Для assert
 #include <utility>      // Для move и is_move_constructible
 
@@ -11,18 +11,18 @@ template<typename T>
 class Array final
 {
 private:
-    T* indicator;
-    int max_size;
-    int current_size;
-    static constexpr int default_size = 8;
+    T* indicator;                               // Указатель на массив элементов
+    int max_size;                               // Максимальный размер массива
+    int current_size;                           // Текущий размер массива
+    static constexpr int default_size = 8;      // Размер массива по умолчанию
 
-    // Перераспределение памяти
+    // Перераспределение памяти при увеличении массива
     void resize(int new_size)
     {
-        T* new_indicator = static_cast<T*>(malloc(new_size * sizeof(T)));
+        T* new_indicator = static_cast<T*>(malloc(new_size * sizeof(T))); // Выделение новой памяти
 
         if (!new_indicator) {
-            throw bad_alloc();
+            throw bad_alloc(); // Исключение в случае нехватки памяти
         }
 
         // Перемещаем или копируем элементы в новую область
@@ -30,20 +30,20 @@ private:
         {
             for (int i = 0; i < current_size; ++i)
             {
-                new (new_indicator + i) T(move(indicator[i]));
-                indicator[i].~T();
+                new (new_indicator + i) T(move(indicator[i])); // Перемещающий конструктор
+                indicator[i].~T(); // Явный вызов деструктора
             }
         }
         else
         {
             for (int i = 0; i < current_size; ++i)
             {
-                new (new_indicator + i) T(indicator[i]);
+                new (new_indicator + i) T(indicator[i]); // Копирующий конструктор
                 indicator[i].~T();
             }
         }
 
-        free(indicator);
+        free(indicator); // Освобождаем старую память
 
         indicator = new_indicator;
         max_size = new_size;
@@ -62,8 +62,8 @@ private:
     class Iterator
     {
     private:
-        T* current;
-        T* end;
+        T* current;     // Текущий элемент
+        T* end;          // Конечный элемент
 
     public:
         Iterator(T* ptr, int size) : current(ptr), end(ptr + size) {}
@@ -136,6 +136,7 @@ public:
             throw bad_alloc();
         }
 
+        // Копируем элементы массива
         for (int i = 0; i < current_size; ++i) {
             new (indicator + i) T(other.indicator[i]);
         }
@@ -144,6 +145,7 @@ public:
     // Конструктор перемещения
     Array(Array&& other) noexcept : indicator(other.indicator), max_size(other.max_size), current_size(other.current_size)
     {
+        // Очищаем данные исходного массива
         other.indicator = nullptr;
         other.max_size = 0;
         other.current_size = 0;
@@ -196,14 +198,17 @@ public:
     }
 
     // Оператор индексирования (константный)
-    const T& operator[](int index) const {
-        assert(index >= 0 && index < current_size);
+    const T& operator[](int index) const 
+    {
+        // Механизм утверждений
+        assert(index >= 0 && index < current_size); // Проверка на допустимый индекс
 
         return indicator[index];
     }
 
     // Оператор индексирования (не константный)
-    T& operator[](int index) {
+    T& operator[](int index) 
+    {
         assert(index >= 0 && index < current_size);
 
         return indicator[index];
@@ -229,9 +234,9 @@ public:
     // Вставка по индексу
     int insert(int index, const T& value)
     {
-        // Механизм утверждений
         assert(index >= 0 && index <= current_size);
 
+        // Увеличиваем массив при необходимости
         if (current_size >= max_size) {
             resize(2 * max_size);
         }
@@ -264,7 +269,6 @@ public:
     // Удаление по индексу
     void remove(int index)
     {
-        // Механизм утверждений
         assert(index >= 0 && index < current_size);
 
         indicator[index].~T();

@@ -1,6 +1,8 @@
 ﻿#include <iostream>
 #include "Dynamic_Array.h"
 
+using namespace std;
+
 int main() 
 {
     Array<int> arr;
@@ -13,9 +15,10 @@ int main()
     }
 
     for (int i = 0; i < arr.size(); ++i) {
-        std::cout << arr[i] << " ";
+        cout << arr[i] << " ";
     }
-    std::cout << std::endl;
+
+    cout << "\n";
 
     return 0;
 }

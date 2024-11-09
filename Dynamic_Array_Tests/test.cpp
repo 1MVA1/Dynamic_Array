@@ -13,7 +13,7 @@
 using namespace std;
 
 // Тест конструктора по умолчанию
-TEST(ArrayTest, DefaultConstructor) 
+TEST(Constructor) 
 {
     Array<int> arr;
 
@@ -21,7 +21,7 @@ TEST(ArrayTest, DefaultConstructor)
 }
 
 // Тест конструктора с параметром
-TEST(ArrayTest, ParamConstructor) 
+TEST(Constructor_with_param) 
 {
     Array<int> arr(5);
 
@@ -29,7 +29,7 @@ TEST(ArrayTest, ParamConstructor)
 }
 
 // Тест вставки элемента
-TEST(ArrayTest, InsertElement) 
+TEST(Insert) 
 {
     Array<int> arr;
 
@@ -41,7 +41,7 @@ TEST(ArrayTest, InsertElement)
 }
 
 // Тест вставки по индексу
-TEST(ArrayTest, InsertElementAtIndex) 
+TEST(Insert_with_index) 
 {
     Array<int> arr;
 
@@ -57,7 +57,7 @@ TEST(ArrayTest, InsertElementAtIndex)
 }
 
 // Тест удаления элемента
-TEST(ArrayTest, RemoveElement) 
+TEST(Remove) 
 {
     Array<int> arr;
 
@@ -74,7 +74,7 @@ TEST(ArrayTest, RemoveElement)
 }
 
 // Тест копирующего конструктора
-TEST(ArrayTest, CopyConstructor) 
+TEST(Copy_constructor) 
 {
     Array<int> arr;
 
@@ -90,7 +90,7 @@ TEST(ArrayTest, CopyConstructor)
 }
 
 // Тест конструктора перемещения
-TEST(ArrayTest, MoveConstructor) 
+TEST(Move_constructor) 
 {
     Array<int> arr;
     arr.insert(10);
@@ -107,7 +107,7 @@ TEST(ArrayTest, MoveConstructor)
 }
 
 // Тест операторов присваивания 1
-TEST(ArrayTest, CopyAssignmentOperator) 
+TEST(Copy_assignment_operator) 
 {
     Array<int> arr;
 
@@ -124,7 +124,7 @@ TEST(ArrayTest, CopyAssignmentOperator)
 }
 
 // Тест операторов присваивания 2
-TEST(ArrayTest, MoveAssignmentOperator) 
+TEST(Move_assignment_operator) 
 {
     Array<int> arr;
 
@@ -143,7 +143,7 @@ TEST(ArrayTest, MoveAssignmentOperator)
 }
 
 // Тест для итераторов
-TEST(ArrayTest, Iterator) 
+TEST(Iterators) 
 {
     Array<int> arr;
 
@@ -166,4 +166,3 @@ TEST(ArrayTest, Iterator)
     it.next();
     ASSERT_FALSE(it.hasNext());
 }
-
