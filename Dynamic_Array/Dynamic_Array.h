@@ -4,6 +4,7 @@
 #include <new>          // Для оператора new с размещением
 #include <cassert>      // Для assert
 #include <utility>      // Для move и is_move_constructible
+#include <algorithm>    // Для swap
 
 using namespace std;
 
@@ -31,7 +32,12 @@ private:
             for (int i = 0; i < current_size; ++i)
             {
                 new (new_indicator + i) T(move(indicator[i])); // Перемещающий конструктор
-                indicator[i].~T(); // Явный вызов деструктора
+
+                // move не требует вызова деструктора:
+                //      Перемещающий конструктор передает ресурсы от одного объекта к другому
+                //      Если вызвать деструктор явно, это нарушает правило двойного освобождения памяти, так как объект всё равно будет 
+                //      уничтожен автоматически позже
+
             }
         }
         else
@@ -59,10 +65,17 @@ private:
         current_size = 0;
     }
 
+    void swap_(Array& other) noexcept 
+    {
+        swap(indicator, other.indicator);
+        swap(max_size, other.max_size);
+        swap(current_size, other.current_size);
+    }
+
     class Iterator
     {
     private:
-        T* current;     // Текущий элемент
+        T* current;      // Текущий элемент
         T* end;          // Конечный элемент
 
     public:
@@ -113,6 +126,58 @@ private:
         }
     };
 
+    class ReverseIterator
+    {
+    private:
+        T* current; 
+        T* start;   
+
+    public:
+        ReverseIterator(T* ptr, int size) : current(ptr + size - 1), start(ptr) {}
+
+        const T& get() const {
+            return *current;
+        }
+
+        void set(const T& value) {
+            *current = value;
+        }
+
+        void next() {
+            if (current >= start) {
+                --current;
+            }
+        }
+
+        bool hasNext() const {
+            return current >= start;
+        }
+    };
+
+    class ConstReverseIterator
+    {
+    private:
+        const T* current;
+        const T* start;   
+
+    public:
+        ConstReverseIterator(const T* ptr, int size) : current(ptr + size - 1), start(ptr) {}
+
+        const T& get() const {
+            return *current;
+        }
+
+        void next() {
+            if (current >= start) {
+                --current;
+            }
+        }
+
+        bool hasNext() const {
+            return current >= start;
+        }
+    };
+
 public:
     // Конструкторы
     Array() : Array(default_size) {}
@@ -152,46 +217,28 @@ public:
     }
 
     // Оператор присваивания копированием
-    Array& operator = (const Array& other)
+    Array& operator=(const Array& other) 
     {
-        if (this != &other)
+        if (this != &other) 
         {
-            clear();
-            free(indicator);
+            // Создаем временную копию other
+            Array temp(other);
 
-            max_size = other.max_size;
-            current_size = other.current_size;
-
-            indicator = static_cast<T*>(malloc(max_size * sizeof(T)));
-
-            if (!indicator) {
-
-                throw bad_alloc();
-            }
-
-            for (int i = 0; i < current_size; ++i) {
-                new (indicator + i) T(other.indicator[i]);
-            }
+            // Если что - то пошло не так, текущий объект остается неизменным, так как изменения применяются только после обмена
+            // swap - это просто обмен указателей и размеров
+            swap_(temp);
         }
 
         return *this;
     }
 
     // Оператор присваивания перемещением
-    Array& operator = (Array&& other) noexcept
+    Array& operator=(Array&& other) noexcept 
     {
-        if (this != &other)
+        if (this != &other) 
         {
-            clear();
-            free(indicator);
-
-            indicator = other.indicator;
-            max_size = other.max_size;
-            current_size = other.current_size;
-
-            other.indicator = nullptr;
-            other.max_size = 0;
-            other.current_size = 0;
+            // Используем swap напрямую с rvalue-ссылкой
+            swap_(other);
         }
 
         return *this;
@@ -236,26 +283,22 @@ public:
     {
         assert(index >= 0 && index <= current_size);
 
-        // Увеличиваем массив при необходимости
-        if (current_size >= max_size) {
+        if (current_size >= max_size)
+        {
             resize(2 * max_size);
         }
 
-        // Сдвигаем элементы вправо, используя перемещение или копирование
-        if constexpr (is_move_constructible<T>::value)
+        // Сдвигаем элементы вправо, начиная с конца
+        for (int i = current_size; i > index; --i)
         {
-            for (int i = current_size; i > index; --i)
+            if constexpr (is_move_constructible_v<T>)
             {
                 new (indicator + i) T(move(indicator[i - 1]));
-                indicator[i - 1].~T();
             }
-        }
-        else
-        {
-            for (int i = current_size; i > index; --i)
+            else
             {
                 new (indicator + i) T(indicator[i - 1]);
-                indicator[i - 1].~T();
+                indicator[i - 1].~T(); 
             }
         }
 
@@ -273,15 +316,25 @@ public:
 
         indicator[index].~T();
 
-        // Сдвигаем элементы влево перемещением или копированием
-        for (int i = index; i < current_size - 1; ++i)
+        if constexpr (is_move_assignable_v<T>) 
         {
-            if constexpr (is_move_assignable<T>::value) {
+            // В случае перемещения, объект может быть в невалидном состоянии после перемещения
+            // Поэтому его деструктор следует вызывать вручную.
+            indicator[index].~T();
+
+            // Сдвигаем элементы влево
+            for (int i = index; i < current_size - 1; ++i) {
                 indicator[i] = move(indicator[i + 1]);
-            }
-            else {
+            }                
+        }
+        else 
+        {
+            // Элемент, который будет перезаписан, уже не используется
+            for (int i = index; i < current_size - 1; ++i) {
                 indicator[i] = indicator[i + 1];
             }
+
+            indicator[current_size - 1].~T();
         }
 
         --current_size;
@@ -296,11 +349,11 @@ public:
         return ConstIterator(indicator, current_size);
     }
 
-    Iterator reverseIterator() {
-        return Iterator(indicator + current_size - 1, current_size);
+    ReverseIterator reverseIterator() {
+        return ReverseIterator(indicator, current_size);
     }
 
-    ConstIterator reverseIterator() const {
-        return ConstIterator(indicator + current_size - 1, current_size);
+    ConstReverseIterator reverseIterator() const {
+        return ConstReverseIterator(indicator, current_size);
     }
 };
