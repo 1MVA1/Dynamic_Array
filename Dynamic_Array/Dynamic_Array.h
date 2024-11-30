@@ -27,7 +27,7 @@ private:
         }
 
         // Перемещаем или копируем элементы в новую область
-        if constexpr (is_move_constructible<T>::value)
+        if constexpr (is_move_constructible<T>)
         {
             for (int i = 0; i < current_size; ++i)
             {
@@ -305,7 +305,7 @@ public:
     {
         assert(index >= 0 && index < current_size);
 
-        if constexpr (is_move_assignable_v<T>) 
+        if constexpr (is_move_constructible_v<T>)
         {
             // Сдвигаем элементы влево
             for (int i = index; i < current_size - 1; ++i) {
@@ -337,7 +337,7 @@ public:
         // Уничтожаем удаляемый элемент
         indicator[index].~T();
 
-        if constexpr (is_move_assignable_v<T>)
+        if constexpr (is_move_constructible_v<T>)
         {
             // Сдвигаем оставшиеся элементы влево
             for (int i = index; i < current_size - 1; ++i)
