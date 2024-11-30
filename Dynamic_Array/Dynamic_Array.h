@@ -32,12 +32,8 @@ private:
             for (int i = 0; i < current_size; ++i)
             {
                 new (new_indicator + i) T(move(indicator[i])); // Перемещающий конструктор
-
-                // move не требует вызова деструктора:
-                //      Перемещающий конструктор передает ресурсы от одного объекта к другому
-                //      Если вызвать деструктор явно, это нарушает правило двойного освобождения памяти, так как объект всё равно будет 
-                //      уничтожен автоматически позже
-
+                //
+                indicator[i].~T();
             }
         }
         else
@@ -219,15 +215,12 @@ public:
     // Оператор присваивания копированием
     Array& operator=(const Array& other) 
     {
-        if (this != &other) 
-        {
-            // Создаем временную копию other
-            Array temp(other);
+        // Создаем временную копию other
+        Array temp(other);
 
-            // Если что - то пошло не так, текущий объект остается неизменным, так как изменения применяются только после обмена
-            // swap - это просто обмен указателей и размеров
-            swap_(temp);
-        }
+        // Если что - то пошло не так, текущий объект остается неизменным, так как изменения применяются только после обмена
+        // swap - это просто обмен указателей и размеров
+        swap_(temp);
 
         return *this;
     }
@@ -235,11 +228,8 @@ public:
     // Оператор присваивания перемещением
     Array& operator=(Array&& other) noexcept 
     {
-        if (this != &other) 
-        {
-            // Используем swap напрямую с rvalue-ссылкой
-            swap_(other);
-        }
+        // Используем swap напрямую с rvalue-ссылкой
+        swap_(other);
 
         return *this;
     }
@@ -309,23 +299,20 @@ public:
         return index;
     }
 
+    //placement new ?
     // Удаление по индексу
-    void remove(int index)
+    void remove1(int index)
     {
         assert(index >= 0 && index < current_size);
 
-        indicator[index].~T();
-
         if constexpr (is_move_assignable_v<T>) 
         {
-            // В случае перемещения, объект может быть в невалидном состоянии после перемещения
-            // Поэтому его деструктор следует вызывать вручную.
-            indicator[index].~T();
-
             // Сдвигаем элементы влево
             for (int i = index; i < current_size - 1; ++i) {
-                indicator[i] = move(indicator[i + 1]);
-            }                
+                indicator[i].operator=(move(indicator[i + 1]));
+            }  
+
+            indicator[current_size - 1].~T();
         }
         else 
         {
@@ -335,6 +322,34 @@ public:
             }
 
             indicator[current_size - 1].~T();
+        }
+
+        --current_size;
+    }
+
+    void remove(int index)
+    {
+        assert(index >= 0 && index < current_size);
+
+        // Уничтожаем удаляемый элемент
+        indicator[index].~T();
+
+        if constexpr (is_move_assignable_v<T>)
+        {
+            // Сдвигаем оставшиеся элементы влево
+            for (int i = index; i < current_size - 1; ++i)
+            {
+                new (indicator + i) T(move(indicator[i + 1]));  // Конструируем новый объект на месте
+                indicator[i + 1].~T();                          // Уничтожаем старый объект
+            }
+        }
+        else
+        {
+            for (int i = index; i < current_size - 1; ++i)
+            {
+                new (indicator + i) T(indicator[i + 1]); 
+                indicator[i + 1].~T(); 
+            }
         }
 
         --current_size;
